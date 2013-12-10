@@ -2,6 +2,9 @@
 // all of which receive the same values, aligned to an offset.
 package multitick
 
+// Copyright (c) 2013 VividCortex, Inc. All rights reserved.
+// Please see the LICENSE file for applicable license terms.
+
 import (
 	"sync"
 	"time"
