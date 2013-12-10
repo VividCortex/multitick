@@ -9,9 +9,9 @@ import (
 
 // Ticker is a broadcaster for time.Time tick events.
 type Ticker struct {
-	mux   sync.Mutex
-	chans []chan time.Time
-	stop  chan bool
+	mux    sync.Mutex
+	chans  []chan time.Time
+	ticker *time.Ticker
 }
 
 // NewTicker creates and starts a new Ticker, whose ticks are sent to
@@ -20,7 +20,7 @@ type Ticker struct {
 // equivalent to "d" in time.NewTicker(d). If the offset is negative, ticking
 // is not aligned to an offset, and begins immediately.
 func NewTicker(interval, offset time.Duration) *Ticker {
-	t := &Ticker{stop: make(chan bool)}
+	t := &Ticker{}
 	if offset >= 0 { // Sleep till the specified offset past the interval.
 		var (
 			now   = time.Now().UnixNano()
@@ -36,7 +36,8 @@ func NewTicker(interval, offset time.Duration) *Ticker {
 		}
 		time.Sleep(sleep)
 	}
-	go t.tick(interval)
+	t.ticker = time.NewTicker(interval)
+	go t.tick()
 	return t
 }
 
@@ -53,27 +54,20 @@ func (t *Ticker) Subscribe() <-chan time.Time {
 
 // Stop stops the ticker. As in time.Ticker, it does not close channels.
 func (t *Ticker) Stop() {
-	t.stop <- true
+	t.ticker.Stop()
 }
 
 // This could be inlined as an anonymous function, but I think it's easier to
 // read stacktraces with real function names in them.
-func (t *Ticker) tick(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	for {
-		select {
-		case <-t.stop:
-			ticker.Stop()
-			return
-		case tick := <-ticker.C:
-			t.mux.Lock()
-			for i := range t.chans {
-				select {
-				case t.chans[i] <- tick:
-				default:
-				}
+func (t *Ticker) tick() {
+	for tick := range t.ticker.C {
+		t.mux.Lock()
+		for i := range t.chans {
+			select {
+			case t.chans[i] <- tick:
+			default:
 			}
-			t.mux.Unlock()
 		}
+		t.mux.Unlock()
 	}
 }
