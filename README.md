@@ -51,7 +51,7 @@ Contributing
 
 Pull requests (with tests, ideally) are welcome!
 
-![Build Status](https://circleci.com/gh/VividCortex/moving_average.png?circle-token=1459fa37f9ca0e50cef05d1963146d96d47ea523)
+![Build Status](https://circleci.com/gh/VividCortex/multitick.png?circle-token=908b24495ba93c1070bddd2c0423f29056ef6007)
 
 License
 =======
