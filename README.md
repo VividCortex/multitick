@@ -51,7 +51,7 @@ Contributing
 
 Pull requests (with tests, ideally) are welcome!
 
-![Build Status](https://circleci.com/gh/VividCortex/multitick.png?circle-token=908b24495ba93c1070bddd2c0423f29056ef6007)
+[![Build Status](https://circleci.com/gh/VividCortex/multitick.png?circle-token=908b24495ba93c1070bddd2c0423f29056ef6007)](https://circleci.com/gh/VividCortex/multitick)
 
 License
 =======
