@@ -8,6 +8,8 @@ package multitick
 import (
 	"sync"
 	"time"
+  "math/rand"
+  "fmt"
 )
 
 // Ticker is a broadcaster for time.Time tick events.
@@ -44,6 +46,24 @@ func NewTicker(interval, offset time.Duration) *Ticker {
 	return t
 }
 
+// NewRandomTicker creates a NewTicker with a random offset that lies within the
+// specified time duration. An optional seed may be specified. If seed is not specified
+// then random will be seeded with clock time. Though the offset is selected at
+// random, it will remain constant once selected.
+func NewRandomTicker(interval time.Duration, seed ...int64) *Ticker {
+  //TODO consider setting the rand.Source as a package variable outside of this function
+  var source rand.Source
+  if len(seed) > 0 {
+    source = rand.NewSource(seed[0])
+  } else {
+    source = rand.NewSource(time.Now().UTC().UnixNano())
+  }
+  r := rand.New(source)
+  offsetNanoSecs := r.Int63n(interval.Nanoseconds())
+  offset,_ := time.ParseDuration(fmt.Sprintf("%vns",offsetNanoSecs))
+  return NewTicker(interval, offset)
+}
+  
 // Subscribe returns a channel to which ticks will be delivered. Ticks that
 // can't be delivered to the channel, because it is not ready to receive, are
 // discarded.
