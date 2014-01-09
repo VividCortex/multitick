@@ -18,6 +18,7 @@ type Ticker struct {
 	ticker        *time.Ticker
 	baseInterval  time.Duration
 	sampleFactor  int
+	seed          int64
 	randGenerator *rand.Rand
 }
 
@@ -45,8 +46,15 @@ func NewTicker(interval, offset time.Duration) *Ticker {
 	}
 	t.ticker = time.NewTicker(interval)
 	t.baseInterval = interval
+	t.seed = time.Now().Unix()
+	t.randGenerator = rand.New(rand.NewSource(t.seed))
 	go t.tick()
 	return t
+}
+
+// Seed returns the seed used for the random number generator that controls timing
+func (t Ticker) Seed() int64 {
+	return t.seed
 }
 
 // Subscribe returns a channel to which ticks will be delivered. Ticks that
@@ -61,15 +69,14 @@ func (t *Ticker) Subscribe() <-chan time.Time {
 }
 
 // Sample modifies the behavior of the ticker to only tick at a random (and changing)
-// point within each specified sampleInterval. (The seed controls the randomness.)
-// all samples still take place at baseInterval and offset specified during construction.
-// Turn off sampling by specifying a zero duration interval.
-func (t *Ticker) Sample(sampleInterval time.Duration, seed int64) {
+// point within each specified sampleInterval. All samples still take place at baseInterval
+// and offset specified during construction. Turn off sampling by specifying a zero
+// duration interval.
+func (t *Ticker) Sample(sampleInterval time.Duration) {
 	t.mux.Lock()
 	t.sampleFactor = int(sampleInterval / t.baseInterval)
 	//NOTE: if the sampleInterval is not an integer multiple of baseInterval
 	//then (via interger division) we round down.
-	t.randGenerator = rand.New(rand.NewSource(seed))
 	t.mux.Unlock()
 }
 
