@@ -46,7 +46,7 @@ func samplingTestor(samplingInterval time.Duration, timesShouldBe []int, t *test
 			break
 		}
 		tenthsOfSeconds := int(now.Sub(start).Nanoseconds() / 100000000)
-		t.Log("time (tenths or seconds)", tenthsOfSeconds)
+		t.Log("time (tenths of seconds)", tenthsOfSeconds)
 		if tenthsOfSeconds != timesShouldBe[i] {
 			t.Error("Expected", timesShouldBe[i], "but got", tenthsOfSeconds, "for tick.Sample(", samplingInterval, ")")
 		}
