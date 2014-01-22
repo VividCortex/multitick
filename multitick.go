@@ -13,13 +13,17 @@ import (
 
 // Ticker is a broadcaster for time.Time tick events.
 type Ticker struct {
-	mux           sync.Mutex
+	mux           sync.Mutex // Protects chans slice and sampleFactor
 	chans         []chan time.Time
-	ticker        *time.Ticker
 	baseInterval  time.Duration
 	sampleFactor  int
 	seed          int64
 	randGenerator *rand.Rand
+
+	tickerMux sync.Mutex // Used to sync start/stop
+	ticker    *time.Ticker
+	stopCh    chan struct{}
+	stopped   bool
 }
 
 // NewTicker creates and starts a new Ticker, whose ticks are sent to
@@ -29,26 +33,42 @@ type Ticker struct {
 // is not aligned to an offset, and begins immediately.
 func NewTicker(interval, offset time.Duration) *Ticker {
 	t := &Ticker{}
-	if offset >= 0 { // Sleep till the specified offset past the interval.
-		var (
-			now   = time.Now().UnixNano()
-			intNs = interval.Nanoseconds()
-			offNs = offset.Nanoseconds()
-			sleep time.Duration
-		)
-		elapsed := now % intNs // since the last interval boundary
-		if elapsed <= offNs {  // we haven't passed the offset, sleep till it
-			sleep = time.Duration(offNs - elapsed)
-		} else { // we passed the offset, sleep till next interval+offset
-			sleep = time.Duration((intNs - elapsed) + offNs)
-		}
-		time.Sleep(sleep)
-	}
-	t.ticker = time.NewTicker(interval)
 	t.baseInterval = interval
 	t.seed = time.Now().Unix()
 	t.randGenerator = rand.New(rand.NewSource(t.seed))
-	go t.tick()
+	// We delay creating the actual time.Ticker in case we need to synchronize
+	// with the next interval boundary. That's done asynchronously below.
+
+	go func() {
+		if offset >= 0 { // Sleep till the specified offset past the interval.
+			var (
+				now   = time.Now().UnixNano()
+				intNs = interval.Nanoseconds()
+				offNs = offset.Nanoseconds()
+				sleep time.Duration
+			)
+			elapsed := now % intNs // since the last interval boundary
+			if elapsed <= offNs {  // we haven't passed the offset, sleep till it
+				sleep = time.Duration(offNs - elapsed)
+			} else { // we passed the offset, sleep till next interval+offset
+				sleep = time.Duration((intNs - elapsed) + offNs)
+			}
+			time.Sleep(sleep)
+		}
+
+		t.tickerMux.Lock()
+		stopped := t.stopped
+
+		if !stopped {
+			t.stopCh = make(chan struct{}, 1)
+			t.ticker = time.NewTicker(interval)
+		}
+		t.tickerMux.Unlock()
+
+		if !stopped {
+			t.tick()
+		}
+	}()
 	return t
 }
 
@@ -82,7 +102,15 @@ func (t *Ticker) Sample(sampleInterval time.Duration) {
 
 // Stop stops the ticker. As in time.Ticker, it does not close channels.
 func (t *Ticker) Stop() {
-	t.ticker.Stop()
+	t.tickerMux.Lock()
+	defer t.tickerMux.Unlock()
+
+	if !t.stopped && t.stopCh != nil {
+		// Ticker's already created and running
+		t.ticker.Stop()
+		t.stopCh <- struct{}{}
+	}
+	t.stopped = true
 }
 
 // This could be inlined as an anonymous function, but I think it's easier to
@@ -91,28 +119,38 @@ func (t *Ticker) tick() {
 	tickCount := -1
 	selectedInterval := 0
 	samplingOn := false
-	for tick := range t.ticker.C {
-		if t.sampleFactor != 0 {
-			samplingOn = true
-			tickCount++
-		} else {
-			samplingOn = false
-			tickCount = -1
-		}
-		if samplingOn && tickCount%t.sampleFactor == 0 {
-			//then we're at the beginning of an interval
-			selectedInterval = int(t.randGenerator.Int63n(int64(t.sampleFactor)))
-		}
-		if (samplingOn && tickCount%t.sampleFactor == selectedInterval) || !samplingOn {
-			//then were at the selected interval OR sampling is off
+
+	for {
+		select {
+		case tick := <-t.ticker.C:
 			t.mux.Lock()
-			for i := range t.chans {
-				select {
-				case t.chans[i] <- tick:
-				default:
-				}
-			}
+			sampleFactor := t.sampleFactor
 			t.mux.Unlock()
+
+			if sampleFactor != 0 {
+				samplingOn = true
+				tickCount++
+			} else {
+				samplingOn = false
+				tickCount = -1
+			}
+			if samplingOn && tickCount%sampleFactor == 0 {
+				//then we're at the beginning of an interval
+				selectedInterval = int(t.randGenerator.Int63n(int64(sampleFactor)))
+			}
+			if (samplingOn && tickCount%sampleFactor == selectedInterval) || !samplingOn {
+				//then were at the selected interval OR sampling is off
+				t.mux.Lock()
+				for i := range t.chans {
+					select {
+					case t.chans[i] <- tick:
+					default:
+					}
+				}
+				t.mux.Unlock()
+			}
+		case <-t.stopCh:
+			return
 		}
 	}
 }

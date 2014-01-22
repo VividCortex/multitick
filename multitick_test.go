@@ -29,6 +29,9 @@ func TestTicker(t *testing.T) {
 }
 
 func samplingTestor(samplingInterval time.Duration, timesShouldBe []int, t *testing.T) {
+	// Wait till next second boundary
+	<-time.After(time.Second - time.Duration(time.Now().Nanosecond()))
+
 	tick := NewTicker(time.Second, time.Millisecond*250)
 	tick.mux.Lock()
 	tick.randGenerator = rand.New(rand.NewSource(0))
@@ -36,7 +39,11 @@ func samplingTestor(samplingInterval time.Duration, timesShouldBe []int, t *test
 	c := tick.Subscribe()
 	tick.Sample(samplingInterval)
 	i := 0
-	start := time.Now()
+
+	// Wait till first offset in the second
+	start := <-time.After(time.Duration(250) * time.Millisecond -
+		time.Duration(time.Now().Nanosecond()))
+
 	for now := range c {
 		if i > 5 {
 			tick.Sample(time.Duration(0))
