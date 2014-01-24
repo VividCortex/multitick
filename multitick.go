@@ -6,19 +6,14 @@ package multitick
 // Please see the LICENSE file for applicable license terms.
 
 import (
-	"math/rand"
 	"sync"
 	"time"
 )
 
 // Ticker is a broadcaster for time.Time tick events.
 type Ticker struct {
-	mux           sync.Mutex // Protects chans slice and sampleFactor
-	chans         []chan time.Time
-	baseInterval  time.Duration
-	sampleFactor  int
-	seed          int64
-	randGenerator *rand.Rand
+	mux   sync.Mutex // Protects chans slice
+	chans []chan time.Time
 
 	tickerMux sync.Mutex // Used to sync start/stop
 	ticker    *time.Ticker
@@ -33,9 +28,6 @@ type Ticker struct {
 // is not aligned to an offset, and begins immediately.
 func NewTicker(interval, offset time.Duration) *Ticker {
 	t := &Ticker{}
-	t.baseInterval = interval
-	t.seed = time.Now().Unix()
-	t.randGenerator = rand.New(rand.NewSource(t.seed))
 	// We delay creating the actual time.Ticker in case we need to synchronize
 	// with the next interval boundary. That's done asynchronously below.
 
@@ -72,11 +64,6 @@ func NewTicker(interval, offset time.Duration) *Ticker {
 	return t
 }
 
-// Seed returns the seed used for the random number generator that controls timing
-func (t Ticker) Seed() int64 {
-	return t.seed
-}
-
 // Subscribe returns a channel to which ticks will be delivered. Ticks that
 // can't be delivered to the channel, because it is not ready to receive, are
 // discarded.
@@ -86,18 +73,6 @@ func (t *Ticker) Subscribe() <-chan time.Time {
 	c := make(chan time.Time)
 	t.chans = append(t.chans, c)
 	return c
-}
-
-// Sample modifies the behavior of the ticker to only tick at a random (and changing)
-// point within each specified sampleInterval. All samples still take place at baseInterval
-// and offset specified during construction. Turn off sampling by specifying a zero
-// duration interval.
-func (t *Ticker) Sample(sampleInterval time.Duration) {
-	t.mux.Lock()
-	t.sampleFactor = int(sampleInterval / t.baseInterval)
-	//NOTE: if the sampleInterval is not an integer multiple of baseInterval
-	//then (via interger division) we round down.
-	t.mux.Unlock()
 }
 
 // Stop stops the ticker. As in time.Ticker, it does not close channels.
@@ -116,39 +91,17 @@ func (t *Ticker) Stop() {
 // This could be inlined as an anonymous function, but I think it's easier to
 // read stacktraces with real function names in them.
 func (t *Ticker) tick() {
-	tickCount := -1
-	selectedInterval := 0
-	samplingOn := false
-
 	for {
 		select {
 		case tick := <-t.ticker.C:
 			t.mux.Lock()
-			sampleFactor := t.sampleFactor
-			t.mux.Unlock()
-
-			if sampleFactor != 0 {
-				samplingOn = true
-				tickCount++
-			} else {
-				samplingOn = false
-				tickCount = -1
-			}
-			if samplingOn && tickCount%sampleFactor == 0 {
-				//then we're at the beginning of an interval
-				selectedInterval = int(t.randGenerator.Int63n(int64(sampleFactor)))
-			}
-			if (samplingOn && tickCount%sampleFactor == selectedInterval) || !samplingOn {
-				//then were at the selected interval OR sampling is off
-				t.mux.Lock()
-				for i := range t.chans {
-					select {
-					case t.chans[i] <- tick:
-					default:
-					}
+			for i := range t.chans {
+				select {
+				case t.chans[i] <- tick:
+				default:
 				}
-				t.mux.Unlock()
 			}
+			t.mux.Unlock()
 		case <-t.stopCh:
 			return
 		}
