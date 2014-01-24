@@ -12,9 +12,8 @@ import (
 
 // Ticker is a broadcaster for time.Time tick events.
 type Ticker struct {
-	mux          sync.Mutex // Protects chans slice
-	chans        []chan time.Time
-	baseInterval time.Duration
+	mux   sync.Mutex // Protects chans slice
+	chans []chan time.Time
 
 	tickerMux sync.Mutex // Used to sync start/stop
 	ticker    *time.Ticker
@@ -29,7 +28,6 @@ type Ticker struct {
 // is not aligned to an offset, and begins immediately.
 func NewTicker(interval, offset time.Duration) *Ticker {
 	t := &Ticker{}
-	t.baseInterval = interval
 	// We delay creating the actual time.Ticker in case we need to synchronize
 	// with the next interval boundary. That's done asynchronously below.
 
