@@ -26,3 +26,14 @@ func TestTicker(t *testing.T) {
 		}
 	}
 }
+
+func TestDropped(t *testing.T) {
+	tick := NewTicker(time.Millisecond, 0)
+	tick.Subscribe()
+	time.Sleep(time.Second)
+	tick.Stop()
+	t.Log(tick.Dropped())
+	if tick.Dropped() < 800 {
+		t.Errorf("got %v dropped ticks, wanted at least 800", tick.Dropped())
+	}
+}
