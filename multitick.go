@@ -19,6 +19,7 @@ type Ticker struct {
 	ticker    *time.Ticker
 	stopCh    chan struct{}
 	stopped   bool
+	dropped   int
 }
 
 // NewTicker creates and starts a new Ticker, whose ticks are sent to
@@ -88,6 +89,11 @@ func (t *Ticker) Stop() {
 	t.stopped = true
 }
 
+// Dropped returns the number of dropped ticks.
+func (t *Ticker) Dropped() int {
+	return t.dropped
+}
+
 // This could be inlined as an anonymous function, but I think it's easier to
 // read stacktraces with real function names in them.
 func (t *Ticker) tick() {
@@ -99,6 +105,7 @@ func (t *Ticker) tick() {
 				select {
 				case t.chans[i] <- tick:
 				default:
+					t.dropped++
 				}
 			}
 			t.mux.Unlock()
