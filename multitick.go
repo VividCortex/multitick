@@ -71,7 +71,7 @@ func NewTicker(interval, offset time.Duration) *Ticker {
 func (t *Ticker) Subscribe() <-chan time.Time {
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	c := make(chan time.Time)
+	c := make(chan time.Time, 1)
 	t.chans = append(t.chans, c)
 	return c
 }
