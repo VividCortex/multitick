@@ -91,6 +91,8 @@ func (t *Ticker) Stop() {
 
 // Dropped returns the number of dropped ticks.
 func (t *Ticker) Dropped() int {
+	t.tickerMux.Lock()
+	defer t.tickerMux.Unlock()
 	return t.dropped
 }
 
@@ -105,7 +107,9 @@ func (t *Ticker) tick() {
 				select {
 				case t.chans[i] <- tick:
 				default:
+					t.tickerMux.Lock()
 					t.dropped++
+					t.tickerMux.Unlock()
 				}
 			}
 			t.mux.Unlock()
