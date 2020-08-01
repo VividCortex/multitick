@@ -1,6 +1,8 @@
 multitick
 =========
 
+![build](https://github.com/VividCortex/multitick/workflows/build/badge.svg)
+
 This package is a wrapper around a single `time.Ticker` in the Go language, which
 provides a way for lots of listeners to subscribe to a single set of ticks.  If
 a subscriber is busy and can't receive a tick, it will be discarded; the
@@ -57,8 +59,6 @@ We only accept pull requests for minor fixes or improvements. This includes:
 
 Please open issues to discuss new features. Pull requests for new features will be rejected,
 so we recommend forking the repository and making changes in your fork for your use case.
-
-[![Build Status](https://circleci.com/gh/VividCortex/multitick.png?circle-token=908b24495ba93c1070bddd2c0423f29056ef6007)](https://circleci.com/gh/VividCortex/multitick)
 
 License
 =======
